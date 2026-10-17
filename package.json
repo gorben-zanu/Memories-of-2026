@@ -1,0 +1,5 @@
+{
+  "name": "keepsakes",
+  "private": true,
+  "scripts": { "build": "node build.js" }
+}

@@ -81,6 +81,18 @@ dialog::backdrop{background:rgba(4,9,26,.93);backdrop-filter:blur(10px)}
 .ctl{position:absolute;border:1px solid rgba(185,198,228,.3);border-radius:50%;width:2.8rem;height:2.8rem;background:rgba(185,198,228,.08);color:var(--pearl);font-size:1.4rem;cursor:pointer;line-height:1;transition:background .3s}
 .ctl:hover{background:rgba(196,30,69,.55)}
 .x{top:.9rem;right:.9rem}.prev{left:.9rem;top:50%}.next{right:.9rem;top:50%}
+nav .ghost{border-style:dashed;margin-left:auto}
+#up{width:min(26rem,92vw);height:fit-content;max-height:90vh;margin:auto;padding:1.6rem;background:#0E1A42;border:1px solid rgba(185,198,228,.25);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 60px -10px rgba(130,165,255,.35)}
+#up h2{font-family:var(--serif);font-style:italic;font-weight:400;font-size:2rem;line-height:1;margin-bottom:1rem}
+#up label{display:block;font-size:.85rem;letter-spacing:.06em;color:var(--mist);margin:1rem 0 .4rem}
+#up input[type=password]{width:100%;padding:.65rem .8rem;border-radius:8px;border:1px solid rgba(185,198,228,.35);background:rgba(185,198,228,.08);color:var(--pearl);font:inherit}
+#up input[type=file]{width:100%;color:var(--silver);font:inherit;font-size:.9rem}
+#up input[type=file]::file-selector-button{margin-right:.8rem;padding:.45rem .9rem;border-radius:999px;border:1px solid rgba(185,198,228,.5);background:transparent;color:var(--pearl);font:inherit;cursor:pointer}
+#up .row{display:flex;gap:.6rem;margin-top:1.4rem}
+#up .row button{font:500 .95rem var(--sans);letter-spacing:.05em;border-radius:999px;padding:.55rem 1.3rem;cursor:pointer;border:1px solid rgba(185,198,228,.5);background:transparent;color:var(--pearl)}
+#up .row #up-go{background:var(--cran);border-color:var(--cran);color:#fff}
+#up .row button:disabled{opacity:.5;cursor:wait}
+#up-msg{min-height:1.4rem;margin-top:1rem;font-size:.92rem;color:var(--silver)}
 @keyframes rise{from{opacity:0;transform:translateY(24px);filter:blur(10px)}to{opacity:1;transform:none;filter:none}}
 @media (max-width:520px){.pictures{columns:2 9rem;column-gap:1rem}.card{margin-bottom:1.25rem;padding:1.5rem .45rem}.card::before,.card::after{height:.45rem}.prev,.next{top:auto;bottom:4rem}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
@@ -96,6 +108,7 @@ dialog::backdrop{background:rgba(4,9,26,.93);backdrop-filter:blur(10px)}
   <nav aria-label="Gallery">
     <button id="tab-pictures" aria-pressed="true">Pictures</button>
     <button id="tab-videos" aria-pressed="false">Videos</button>
+    <button id="open-up" class="ghost" hidden>+ Upload</button>
   </nav>
 </header>
 <main id="grid"></main>
@@ -105,6 +118,16 @@ dialog::backdrop{background:rgba(4,9,26,.93);backdrop-filter:blur(10px)}
   <button class="ctl prev" aria-label="Previous">&#8249;</button>
   <button class="ctl next" aria-label="Next">&#8250;</button>
   <div class="box"><div class="stage"></div><div class="bar"><span id="pos"></span></div></div>
+</dialog>
+
+<dialog id="up" aria-label="Upload">
+  <h2>add to the gallery</h2>
+  <label for="up-pw">Password</label>
+  <input id="up-pw" type="password" autocomplete="current-password">
+  <label for="up-files">Pictures or videos</label>
+  <input id="up-files" type="file" accept="image/*,video/*" multiple>
+  <div class="row"><button id="up-go">Upload</button><button id="up-close" type="button">Close</button></div>
+  <p id="up-msg" role="status"></p>
 </dialog>
 
 <script>
@@ -172,11 +195,63 @@ document.addEventListener('keydown', e => {
 document.getElementById('tab-pictures').onclick = () => { view = 'pictures'; render(); };
 document.getElementById('tab-videos').onclick = () => { view = 'videos'; render(); };
 
-fetch('manifest.json').then(r => r.json()).then(m => {
-  data = m;
-  count.textContent = `${plural(m.pictures.length, 'picture')} and ${plural(m.videos.length, 'video')}, all in one place.`;
-  render();
-}).catch(() => { count.textContent = 'Could not load the gallery. Try refreshing the page.'; });
+function updateCount() {
+  count.textContent = `${plural(data.pictures.length, 'picture')} and ${plural(data.videos.length, 'video')}, all in one place.`;
+}
+const empty = () => ({ pictures: [], videos: [] });
+let canUpload = false;
+Promise.all([
+  fetch('manifest.json').then(r => r.json()).catch(empty),
+  // only works once Vercel Blob is set up; otherwise the upload button simply stays hidden
+  fetch('/api/list').then(r => { if (!r.ok) throw 0; canUpload = true; return r.json(); }).catch(empty)
+]).then(([m, u]) => {
+  data = { pictures: [...u.pictures, ...m.pictures], videos: [...u.videos, ...m.videos] };
+  updateCount(); render();
+  if (canUpload) document.getElementById('open-up').hidden = false;
+});
+
+// ---- password-protected uploads ----
+const up = document.getElementById('up'), upPw = document.getElementById('up-pw');
+const upFiles = document.getElementById('up-files'), upGo = document.getElementById('up-go'), upMsg = document.getElementById('up-msg');
+const say = t => { upMsg.textContent = t; };
+try { upPw.value = sessionStorage.getItem('kp') || ''; } catch (e) {}
+document.getElementById('open-up').onclick = () => { say(''); up.showModal(); };
+document.getElementById('up-close').onclick = () => up.close();
+
+upGo.onclick = async () => {
+  const files = [...upFiles.files];
+  if (!upPw.value) return say('Enter the password.');
+  if (!files.length) return say('Choose at least one picture or video.');
+  upGo.disabled = true; say('Checking password…');
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'check-password', password: upPw.value }) });
+    if (!r.ok) { say(r.status === 401 ? 'Wrong password.' : 'Could not reach the server.'); upGo.disabled = false; return; }
+  } catch (e) { say('Could not reach the server.'); upGo.disabled = false; return; }
+  try { sessionStorage.setItem('kp', upPw.value); } catch (e) {}
+  let mod;
+  try { mod = await import('./upload-client.js'); }
+  catch (e) { say('Upload tools are missing. Redeploy with upload-client.js included.'); upGo.disabled = false; return; }
+  let ok = 0, last = view;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const isVid = f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
+    const isImg = f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|avif)$/i.test(f.name);
+    if (!isVid && !isImg) { continue; }
+    const safe = f.name.replace(/[^a-zA-Z0-9._-]+/g, '-');
+    const label = p => say(`Uploading ${i + 1} of ${files.length}… ${Math.round(p)}%`);
+    label(0);
+    try {
+      const blob = await mod.upload(`${isVid ? 'Videos' : 'Pictures'}/${safe}`, f, {
+        access: 'public', handleUploadUrl: '/api/upload', clientPayload: upPw.value,
+        multipart: f.size > 50 * 1024 * 1024, onUploadProgress: ({ percentage }) => label(percentage)
+      });
+      data[isVid ? 'videos' : 'pictures'].unshift({ src: blob.url });
+      last = isVid ? 'videos' : 'pictures'; ok++;
+    } catch (e) { say(`Upload failed on ${f.name}. It may be too big or an unsupported type.`); upGo.disabled = false; break; }
+  }
+  if (ok) { view = last; updateCount(); render(); say(`Done. ${ok} added.`); upFiles.value = ''; }
+  upGo.disabled = false;
+};
 </script>
 </body>
 </html>

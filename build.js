@@ -1,7 +1,7 @@
 // Scans ./Pictures and ./Videos, copies everything into ./dist and writes dist/manifest.json.
-// Vercel runs this on every deploy, so new files show up automatically.
-const fs = require('fs');
-const path = require('path');
+// Vercel runs this on every deploy, so new files in those folders show up automatically.
+import fs from 'node:fs';
+import path from 'node:path';
 
 const IMG = /\.(jpe?g|png|gif|webp|avif|svg)$/i;
 const VID = /\.(mp4|webm|mov|m4v|ogg)$/i;
@@ -20,7 +20,9 @@ fs.mkdirSync(OUT);
 for (const d of ['Pictures', 'Videos']) {
   if (fs.existsSync(d)) fs.cpSync(d, path.join(OUT, d), { recursive: true });
 }
-fs.copyFileSync('index.html', path.join(OUT, 'index.html'));
+for (const f of ['index.html', 'upload-client.js']) {
+  if (fs.existsSync(f)) fs.copyFileSync(f, path.join(OUT, f));
+}
 
 const manifest = { pictures: scan('Pictures', IMG), videos: scan('Videos', VID) };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));

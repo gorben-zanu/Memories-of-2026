@@ -1,10 +1,7 @@
 {
   "name": "keepsakes",
   "private": true,
-  "scripts": {
-    "build": "node build.js"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^2.0.1"
-  }
+  "type": "module",
+  "scripts": { "build": "node build.js" },
+  "dependencies": { "@vercel/blob": "^1.0.0" }
 }

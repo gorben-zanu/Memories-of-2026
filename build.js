@@ -22,6 +22,12 @@ for (const d of ['Pictures', 'Videos']) {
 }
 fs.copyFileSync('index.html', path.join(OUT, 'index.html'));
 
+// Copy Vercel Analytics script
+const analyticsScript = path.join('node_modules', '@vercel', 'analytics', 'dist', 'index.mjs');
+if (fs.existsSync(analyticsScript)) {
+  fs.copyFileSync(analyticsScript, path.join(OUT, 'analytics.js'));
+}
+
 const manifest = { pictures: scan('Pictures', IMG), videos: scan('Videos', VID) };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 console.log(`Built: ${manifest.pictures.length} pictures, ${manifest.videos.length} videos`);

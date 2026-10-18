@@ -107,6 +107,12 @@ dialog::backdrop{background:rgba(4,9,26,.93);backdrop-filter:blur(10px)}
   <div class="box"><div class="stage"></div><div class="bar"><span id="pos"></span></div></div>
 </dialog>
 
+<script type="module">
+// Initialize Vercel Analytics
+import { inject } from './analytics.js';
+inject();
+</script>
+
 <script>
 const grid = document.getElementById('grid'), count = document.getElementById('count');
 const dlg = document.getElementById('lb'), stage = dlg.querySelector('.stage');
